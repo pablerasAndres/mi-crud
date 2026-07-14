@@ -1,88 +1,62 @@
-import React, { useState, useEffect } from 'react';
-import './App.css'; // Vinculación directa con tu archivo de estilos CSS
+import { useState, useEffect } from 'react';
+import './App.css';
 
-function App() {
-  // Estado para la lista de elementos (Carga desde LocalStorage si ya existe información guardada)
+export default function App() {
   const [items, setItems] = useState(() => {
-    const saved = localStorage.getItem('crud_items');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('crud_items_c3');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
   });
 
-  // Estados para controlar el texto escrito y el ID del elemento en edición
   const [inputValue, setInputValue] = useState('');
   const [editId, setEditId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Guardar automáticamente en LocalStorage cada vez que se agregue, edite o elimine un elemento
   useEffect(() => {
-    localStorage.setItem('crud_items', JSON.stringify(items));
+    localStorage.setItem('crud_items_c3', JSON.stringify(items));
   }, [items]);
 
-  // FUNCIÓN: Guardar elemento (Crear o Editar con Validaciones Estrictas)
   const handleSave = () => {
     const cleanText = inputValue.trim();
 
-    // 1. Validación: Campos vacíos o con puros espacios en blanco
     if (!cleanText || cleanText === '') {
-      alert('⚠️ Error: No puedes ingresar un elemento vacío o compuesto solo de espacios.');
+      alert('⚠️ Error: No puedes ingresar un elemento vacío.');
       return;
     }
 
-    // 2. Validación: Campos mal ingresados (ej. texto extremadamente corto de menos de 3 letras)
-    if (cleanText.length < 3) {
-      alert('⚠️ Error: El texto ingresado es demasiado corto (mínimo debe tener 3 caracteres).');
-      return;
-    }
-
-    // 3. Validación: No permitir que la entrada sea puramente numérica
-    const onlyNumbersRegex = /^\d+$/;
-    if (onlyNumbersRegex.test(cleanText)) {
-      alert('⚠️ Error: El elemento no puede estar compuesto únicamente por números. Agrega texto descriptivo.');
-      return;
-    }
-
-    // 4. Validación: Bloquear caracteres especiales sospechosos o peligrosos para evitar errores de renderizado o seguridad
-    const specialCharsRegex = /[<>"/\\;{}]/;
-    if (specialCharsRegex.test(cleanText)) {
-      alert('⚠️ Error: No se permiten caracteres especiales como < > " / \\ ; { }');
-      return;
-    }
-
-    // Guardado de datos tras superar los filtros de validación
     if (editId !== null) {
-      // Modo Edición: Actualizar elemento existente
       setItems(items.map(item => item.id === editId ? { ...item, text: cleanText } : item));
       setEditId(null);
     } else {
-      // Modo Creación: Añadir nuevo elemento a la lista
       const newItem = {
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         text: cleanText,
         completed: false
       };
       setItems([...items, newItem]);
     }
-
-    setInputValue(''); // Limpiar el input tras la operación
+    setInputValue('');
   };
 
-  // FUNCIÓN: Activar el modo de edición llenando el input con el texto seleccionado
-  const handleStartEdit = (item) => {
+  const handleStartEdit = (e, item) => {
+    e.stopPropagation();
     setInputValue(item.text);
     setEditId(item.id);
   };
 
-  // FUNCIÓN: Cancelar la edición y limpiar el input
-  const handleCancelEdit = () => {
+  const handleCancelOrClear = () => {
     setInputValue('');
     setEditId(null);
   };
 
-  // FUNCIÓN: Eliminar elemento con una alerta de confirmación del navegador antes de borrar
-  const handleDelete = (id) => {
-    const confirmDelete = window.confirm('¿Estás seguro de que deseas eliminar este elemento de la lista?');
+  const handleDelete = (id, e) => {
+    e.stopPropagation();
+    const confirmDelete = window.confirm('¿De verdad quieres eliminar este elemento?');
     if (confirmDelete) {
       setItems(items.filter(item => item.id !== id));
-      // Si eliminamos el elemento que estábamos editando, cancelamos la edición automáticamente
       if (editId === id) {
         setEditId(null);
         setInputValue('');
@@ -90,60 +64,102 @@ function App() {
     }
   };
 
+  const toggleComplete = (id) => {
+    setItems(items.map(item => 
+      item.id === id ? { ...item, completed: !item.completed } : item
+    ));
+  };
+
+  const handleClearCompleted = () => {
+    const confirmClear = window.confirm('¿De verdad quieres eliminar únicamente los elementos seleccionados (completados)?');
+    if (confirmClear) {
+      setItems(items.filter(item => !item.completed));
+    }
+  };
+
+  const handleClearAll = () => {
+    const confirmClear = window.confirm('⚠️ ¿Estás seguro de que quieres borrar TODOS los elementos? Esta acción no se puede deshacer.');
+    if (confirmClear) {
+      setItems([]);
+      setInputValue('');
+      setEditId(null);
+    }
+  };
+
+  const filteredItems = items.filter(item => 
+    item.text.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const totalItems = items.length;
+  const completedItems = items.filter(i => i.completed).length;
+
   return (
     <div className="card-container">
-      
-      {/* Título de la aplicación */}
       <h1 className="title">Mi CRUD</h1>
+
+      {totalItems > 0 && (
+        <div className="search-group">
+          <input 
+            type="text"
+            className="search-field"
+            placeholder="🔍 Buscar elemento en la lista..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+      )}
       
-      {/* Formulario de Entrada */}
       <div className="form-group">
         <input 
           type="text" 
           className="input-field" 
-          placeholder={editId !== null ? "Modificando elemento..." : "Escribe un elemento..."} 
+          placeholder={editId !== null ? "Editando..." : "Escribe un nuevo elemento..."} 
           value={inputValue} 
           onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSave()} // Permite guardar al pulsar Enter
+          onKeyDown={(e) => e.key === 'Enter' && handleSave()}
         />
         <button className="btn-submit" onClick={handleSave}>
           {editId !== null ? 'Actualizar' : 'Agregar'}
         </button>
-        {editId !== null && (
-          <button className="btn-action btn-cancel" onClick={handleCancelEdit}>
+        {(editId !== null || inputValue.length > 0) && (
+          <button className="btn-action btn-cancel" onClick={handleCancelOrClear}>
             Cancelar
           </button>
         )}
       </div>
 
-      {/* CONTADOR DE ELEMENTOS: Dinámico y actualizado en tiempo real */}
       <div className="counter-container">
-        <p className="counter-text">Total de elementos: <strong>{items.length}</strong></p>
+        <span>Total: <strong>{totalItems}</strong></span>
+        <span>Completados: <strong style={{color: '#10b981'}}>{completedItems}</strong></span>
       </div>
 
-      {/* Lista de Elementos */}
       <ul className="item-list">
-        {items.length === 0 ? (
-          <p className="empty-message">No hay elementos en la lista. ¡Comienza agregando uno!</p>
+        {filteredItems.length === 0 ? (
+          <p className="empty-message">
+            {totalItems === 0 
+              ? "No hay elementos creados. ¡Agrega uno!" 
+              : "No se encontraron resultados para tu búsqueda."}
+          </p>
         ) : (
-          items.map((item) => (
-            <li className="list-item" key={item.id}>
-              <span className="item-text">{item.text}</span>
-              
+          filteredItems.map((item) => (
+            <li key={item.id} className={`list-item ${item.completed ? 'completed' : ''}`}>
+              <div className="item-content" onClick={() => toggleComplete(item.id)}>
+                <input 
+                  type="checkbox" 
+                  className="checkbox" 
+                  checked={item.completed} 
+                  readOnly 
+                />
+                <span className={`item-text ${item.completed ? 'line-through' : ''}`}>
+                  {item.text}
+                </span>
+              </div>
+
               <div className="action-buttons">
-                {/* Botón de Editar — Color Verde Obligatorio */}
-                <button 
-                  className="btn-action btn-edit" 
-                  onClick={() => handleStartEdit(item)}
-                >
+                <button className="btn-action btn-edit" onClick={(e) => handleStartEdit(e, item)}>
                   Editar
                 </button>
-                
-                {/* Botón de Eliminar — Color Rojo Obligatorio */}
-                <button 
-                  className="btn-action btn-delete" 
-                  onClick={() => handleDelete(item.id)}
-                >
+                <button className="btn-action btn-delete" onClick={(e) => handleDelete(item.id, e)}>
                   Eliminar
                 </button>
               </div>
@@ -152,8 +168,18 @@ function App() {
         )}
       </ul>
 
+      {totalItems > 0 && (
+        <div className="footer-buttons">
+          {completedItems > 0 && (
+            <button className="btn-clear-completed" onClick={handleClearCompleted}>
+              Borrar seleccionados
+            </button>
+          )}
+          <button className="btn-clear-all" onClick={handleClearAll}>
+            Borrar todos
+          </button>
+        </div>
+      )}
     </div>
   );
 }
-
-export default App;
