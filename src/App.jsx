@@ -4,9 +4,10 @@ import './App.css';
 export default function App() {
   const [items, setItems] = useState(() => {
     try {
-      const saved = localStorage.getItem('crud_items_c3');
+      const saved = localStorage.getItem('crud_items_c4');
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
+      console.error("Error cargando base de datos local:", e);
       return [];
     }
   });
@@ -14,9 +15,10 @@ export default function App() {
   const [inputValue, setInputValue] = useState('');
   const [editId, setEditId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
-    localStorage.setItem('crud_items_c3', JSON.stringify(items));
+    localStorage.setItem('crud_items_c4', JSON.stringify(items));
   }, [items]);
 
   const handleSave = () => {
@@ -30,6 +32,7 @@ export default function App() {
     if (editId !== null) {
       setItems(items.map(item => item.id === editId ? { ...item, text: cleanText } : item));
       setEditId(null);
+      setFilter('all'); // QA Fix
     } else {
       const newItem = {
         id: Date.now() + Math.random(),
@@ -37,6 +40,7 @@ export default function App() {
         completed: false
       };
       setItems([...items, newItem]);
+      setFilter('all'); // QA Fix
     }
     setInputValue('');
   };
@@ -50,6 +54,7 @@ export default function App() {
   const handleCancelOrClear = () => {
     setInputValue('');
     setEditId(null);
+    setFilter('all'); // QA Fix
   };
 
   const handleDelete = (id, e) => {
@@ -71,7 +76,7 @@ export default function App() {
   };
 
   const handleClearCompleted = () => {
-    const confirmClear = window.confirm('¿De verdad quieres eliminar únicamente los elementos seleccionados (completados)?');
+    const confirmClear = window.confirm('¿De verdad quieres eliminar únicamente los elementos seleccionados?');
     if (confirmClear) {
       setItems(items.filter(item => !item.completed));
     }
@@ -86,26 +91,70 @@ export default function App() {
     }
   };
 
-  const filteredItems = items.filter(item => 
-    item.text.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const totalItems = items.length;
   const completedItems = items.filter(i => i.completed).length;
+  const pendingItems = totalItems - completedItems;
+  const progressPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
+  const filteredItems = items
+    .filter(item => item.text.toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter(item => {
+      if (filter === 'pending') return !item.completed;
+      if (filter === 'completed') return item.completed;
+      return true;
+    });
 
   return (
     <div className="card-container">
       <h1 className="title">Mi CRUD</h1>
 
+      {/* BARRA DE PROGRESO */}
+      {totalItems > 0 && (
+        <div className="progress-wrapper">
+          <div className="progress-info">
+            <span>Progreso General</span>
+            <span>{progressPercent}% Completado</span>
+          </div>
+          <div className="progress-bar-bg">
+            <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }}></div>
+          </div>
+        </div>
+      )}
+
+      {/* BUSCADOR */}
       {totalItems > 0 && (
         <div className="search-group">
           <input 
             type="text"
             className="search-field"
-            placeholder="🔍 Buscar elemento en la lista..."
+            placeholder="🔍 Buscar elemento..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+      )}
+
+      {/* PESTAÑAS DE FILTRADO */}
+      {totalItems > 0 && (
+        <div className="filter-tabs">
+          <button 
+            className={`tab-btn ${filter === 'all' ? 'active' : ''}`}
+            onClick={() => setFilter('all')}
+          >
+            Todos ({totalItems})
+          </button>
+          <button 
+            className={`tab-btn ${filter === 'pending' ? 'active' : ''}`}
+            onClick={() => setFilter('pending')}
+          >
+            Pendientes ({pendingItems})
+          </button>
+          <button 
+            className={`tab-btn ${filter === 'completed' ? 'active' : ''}`}
+            onClick={() => setFilter('completed')}
+          >
+            Completados ({completedItems})
+          </button>
         </div>
       )}
       
@@ -138,7 +187,7 @@ export default function App() {
           <p className="empty-message">
             {totalItems === 0 
               ? "No hay elementos creados. ¡Agrega uno!" 
-              : "No se encontraron resultados para tu búsqueda."}
+              : "No hay elementos que coincidan con este filtro."}
           </p>
         ) : (
           filteredItems.map((item) => (
